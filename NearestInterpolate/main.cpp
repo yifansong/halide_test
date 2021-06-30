@@ -10,30 +10,25 @@ void my_nearest_interpolation(float* src, int src_width, int src_height, float* 
 	interpolate(x, y) = image(x, y);
 
 	int dst_index = 0;
-	for (int row = 0; row < sample_height; ++row)
+	for (int index = 0; index < sample_height; index++)
 	{
-		for (int col = 0; col < sample_width; ++col)
-		{
-			int index = row * sample_width + col;
-
-			float samplex = sample_xy[index * 2 + 0];
-			float sampley = sample_xy[index * 2 + 1];
-			if ((samplex < 0) || (samplex >= image.width()) || (sampley < 0) || (sampley >= image.height())) {
-				dst[dst_index] = 0.f;
-			}
-			else {
-				Halide::Buffer<float> sample(1, 1);
-				const int closest_x = static_cast<int>(std::floor(samplex));
-				const int closest_y = static_cast<int>(std::floor(sampley));
-
-				sample.set_min(closest_x, closest_y);
-
-				interpolate.realize(sample);
-				dst[dst_index] = sample(closest_x, closest_y);
-
-			}
-			dst_index++;
+		float samplex = sample_xy[index * sample_width];
+		float sampley = sample_xy[(index * sample_width)+ 1];
+		if ((samplex < 0) || (samplex >= image.width()) || (sampley < 0) || (sampley >= image.height())) {
+			dst[dst_index] = 0.f;
 		}
+		else {
+			Halide::Buffer<float> sample(1, 1);
+			const int closest_x = static_cast<int>(std::floor(samplex));
+			const int closest_y = static_cast<int>(std::floor(sampley));
+
+			sample.set_min(closest_x, closest_y);
+
+			interpolate.realize(sample);
+			dst[dst_index] = sample(closest_x, closest_y);
+
+		}
+		dst_index++;
 	}
 }
 
@@ -77,12 +72,38 @@ int main() {
 		0.25f, 1.75f
 	};
 	int sample_width = 2;
-	int sample_height = 5;
+	int sample_height = 10;
 
 	std::vector<float> dst;
-	dst.resize(sample_height * sample_width);
+	dst.resize(sample_height);
 
 	my_nearest_interpolation(src.data(), src_width, src_height, sample_xy.data(), sample_height, sample_width, dst.data());
+
+	// 1)
+	assert(dst[0] == 2.f);
+
+	// 2)
+	assert(dst[1] == 2.f);
+
+	// 3) 
+	// it is hard to say what the correct answer should be here
+	// will accept any of the surrounding 4 pixels
+	assert(dst[2] == 1.f || dst[2] == 2.f || dst[2] == 4.f || dst[2] == 5.f);
+
+	// 4) ... 7)
+	assert(dst[3] == 0);
+	assert(dst[4] == 0);
+	assert(dst[5] == 0);
+	assert(dst[6] == 0);
+
+	// 8)
+	assert(dst[7] == 6.f);
+
+	// 9)
+	assert(dst[8] == 5.f);
+
+	// 10)
+	assert(dst[9] == 4.f);
 
 	return 0;
 }
