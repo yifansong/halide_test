@@ -1,6 +1,6 @@
 #include "Halide.h"
 #include <iostream>
-
+#include <iomanip>
 void my_nearest_interpolation(float* src, int src_width, int src_height, float* sample_xy, int sample_height, int sample_width, float* dst) {
 
 	Halide::Buffer<float> image(src, { src_width, src_height }, "Image");
@@ -32,10 +32,71 @@ void my_nearest_interpolation(float* src, int src_width, int src_height, float* 
 	}
 }
 
-int main() {
+void my_bilinear_interpolation(std::vector<float>& src, int src_width, int src_height, std::vector<float>& dst) {
+
+	Halide::Buffer<float> image(src.data(), { src_width, src_height }, "Image");
+	const int maxx = src_width - 1;
+	const int maxy = src_height - 1;
+
+	Halide::Var x("x"), y("y");
+	Halide::Func interpolate("interpolate");
+	Halide::Expr factor1 = (image(0, maxy) * (maxx - x) * (y));
+	Halide::Expr factor2 = (image(maxx, maxy) * (x) * (y));
+	Halide::Expr factor3 = (image(0, 0) * (maxx - x) * (maxy - y));
+	Halide::Expr factor4 = (image(maxx, 0) * (x) * (maxy - y));
+
+	interpolate(x, y) = (factor1 + factor2 + factor3 + factor4);
+
+	Halide::Var x_outer, x_inner;
+	interpolate.split(x, x_outer, x_inner, 5);
+	interpolate.vectorize(x_inner);
+
+	Halide::Buffer<float> sample(src_width, src_height);
+
+	interpolate.realize(sample);
+	for (int y = 0; y < src_height; y++) {
+		for (int x = 0; x < src_width; x++) {
+			float unadjusted = sample(x, y);
+			float adjusted = unadjusted * (1.f / (maxy * maxx));
+			dst.push_back(adjusted);
+		}
+	}
+}
+
+void test_bilinear_interpolation() {
 	std::vector<float> src = {
-	1.f, 2.f, 3.f,
-	4.f, 5.f, 6.f
+		1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.5f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+		0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 1.f
+	};
+
+
+	std::vector<float> res;
+	res.reserve(10 * 10);
+
+	my_bilinear_interpolation(src, 10, 10, res);
+
+	std::cout << std::fixed << std::setw(11) << std::setprecision(6);
+	std::cout << "image\n";
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			std::cout << res[i * 10 + j] << " ";
+		}
+		std::cout << "\n";
+	}
+}
+
+void test_nearest_interpolation() {
+	std::vector<float> src = {
+		1.f, 2.f, 3.f,
+		4.f, 5.f, 6.f
 	};
 	int src_width = 3;
 	int src_height = 2;
@@ -104,6 +165,13 @@ int main() {
 
 	// 10)
 	assert(dst[9] == 4.f);
+}
+
+
+int main() 
+{
+	test_nearest_interpolation();
+	test_bilinear_interpolation();
 
 	return 0;
 }
