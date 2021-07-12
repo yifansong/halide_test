@@ -44,8 +44,8 @@ void my_bilinear_interpolation(std::vector<float>& src, int src_width, int src_h
 	Halide::Expr factor2 = (image(maxx, maxy) * (x) * (y));
 	Halide::Expr factor3 = (image(0, 0) * (maxx - x) * (maxy - y));
 	Halide::Expr factor4 = (image(maxx, 0) * (x) * (maxy - y));
-
-	interpolate(x, y) = (factor1 + factor2 + factor3 + factor4);
+	Halide::Expr c = (1.f / (maxx * maxy));
+	interpolate(x, y) = c * (factor1 + factor2 + factor3 + factor4);
 
 	Halide::Var x_outer, x_inner;
 	interpolate.split(x, x_outer, x_inner, 5);
@@ -56,9 +56,7 @@ void my_bilinear_interpolation(std::vector<float>& src, int src_width, int src_h
 	interpolate.realize(sample);
 	for (int y = 0; y < src_height; y++) {
 		for (int x = 0; x < src_width; x++) {
-			float unadjusted = sample(x, y);
-			float adjusted = unadjusted * (1.f / (maxy * maxx));
-			dst.push_back(adjusted);
+			dst.push_back(sample(x, y));
 		}
 	}
 }
